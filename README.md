@@ -102,8 +102,8 @@
 
 | 파일 / 폴더 | 설명 |
 | :--- | :--- |
-| **`app.py`** | **[핵심 애플리케이션]** 메인 `App` 클래스(PyQt5 GUI), 모든 LLM 프롬프트 로직, 이벤트 핸들러를 포함하는 단일 진입점. |
-| **`db/connector.py`** | **[데이터베이스 모듈]** `.env` 파일에서 정보를 읽어 SQLAlchemy `engine`을 생성하고, SQL 실행을 위한 `run_query` 함수를 제공. |
-| **`assets/logo.png`** | 메인 윈도우에 사용되는 애플리케이션 아이콘. |
-| `requirements.txt` | 프로젝트 실행에 필요한 모든 Python 라이브러리 목록. |
-| `.gitignore` | Git이 무시할 파일 및 폴더 목록 (예: `.env`, `ded_venv/`, `source_data/DB_raw/`). |
+| **`app.py`** | **[핵심 애플리케이션]** <br> PyQt5 GUI, 6단계 핵심 흐름(Orchestration), 모든 LLM 프롬프트 로직, 이벤트 핸들러를 포함하는 단일 진입점입니다. |
+| **`db/connector.py`** | **[데이터베이스 모듈]** <br> `.env`의 `DATABASE_URL`을 읽어 SQLAlchemy `engine`을 생성하고, SQL 실행을 위한 `run_query` 함수를 제공합니다.<br><br>**`create_engine`이란?**<br><ul><li>이것은 LangChain의 '체인(Chain)'(작업 순서)이 아닙니다.</li><li>SQLAlchemy의 핵심 기능으로, DB와 통신하는 '연결 관리자(Connection Pool)'를 생성합니다.</li><li>`run_query` 함수는 쿼리 실행 시 이 `engine`에게 실제 DB 연결(Connection)을 요청하여 작업을 수행합니다.</li></ul> |
+| **`assets/logo.png`** | 메인 윈도우에 사용되는 애플리케이션 아이콘입니다. |
+| `requirements.txt` | 프로젝트 실행에 필요한 모든 Python 라이브러리 목록입니다. |
+| `.gitignore` | Git이 무시할 파일 및 폴더 목록 (예: `.env`, `ded_venv/`, `source_data/DB_raw/`)입니다. |
