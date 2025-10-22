@@ -1,0 +1,21 @@
+# 1. 사용자 요청: DB 원본 데이터 제외
+source_data/DB_raw/
+
+# 2. 보안: 데이터베이스 접속 정보 및 API 키 제외
+.env
+
+# 3. 환경: 파이썬 가상 환경 폴더 제외
+ded_venv/
+.venv/
+
+# 4. 파이썬 캐시 파일 제외
+__pycache__/
+*.pyc
+
+# 5. 기타: OS 및 에디터 설정 파일
+.vscode/
+.DS_Store
+
+# 6. 임시 파일: 대화 기록 및 테스트 결과물
+memory.json
+*.html

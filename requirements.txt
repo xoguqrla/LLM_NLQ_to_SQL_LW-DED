@@ -1,0 +1,21 @@
+# .env 파일 관리
+python-dotenv
+
+# OpenAI API
+openai
+
+# 데이터 처리
+pandas
+
+# 데이터베이스 (ORM + 드라이버)
+SQLAlchemy
+psycopg2-binary
+
+# GUI (PyQt5)
+PyQt5
+
+# PyQt5 내 그래프/웹 표시용
+PyQtWebEngine
+
+# 그래프 생성
+plotly
