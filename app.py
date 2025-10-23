@@ -127,7 +127,7 @@ def apply_dark70_theme(app: QApplication):
 # ─────────────────────────────────────────────────────────────────
 SQL_START = re.compile(r'(?is)\b(SELECT|WITH|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|EXPLAIN)\b')
 
-def sanitize_sql(raw: str) -> str:
+def sanitize_sql(raw: str) -> str:   # LLM의 출력물 정리 (청소부) -> 이 함수는 LLM이 생성한 SQL 쿼리에서 불필요한 주석, 설명, 백틱 등을 제거하고, SQL 문장만 남기는 역할을 합니다.
     if not raw: return ""
     blocks = re.findall(r"```(?:sql)?\s*(.*?)```", raw, flags=re.S)
     if blocks: raw = blocks[0]
@@ -138,7 +138,7 @@ def sanitize_sql(raw: str) -> str:
     if not raw.endswith(";"): raw += ";"
     return raw
 
-def enforce_project_filter(sql: str, ids: List[int]) -> str:
+def enforce_project_filter(sql: str, ids: List[int]) -> str:  # 프로젝트 필터 강제 적용 (안전장치) -> 이 함수는 GUI에서 사용자가 체크박스로 선택한 프로젝트 ID를 SQL 쿼리에 강제로 주입하는 매우 중요한 "안전장치"입니다.
     if not ids: return sql
     ids_csv = ",".join(str(int(i)) for i in sorted(set(ids)))
     if re.search(r'\bproject_id\b\s+IN\s*\(\s*\d+(?:\s*,\s*\d+)*\s*\)', sql, flags=re.I): return sql
@@ -149,6 +149,8 @@ def enforce_project_filter(sql: str, ids: List[int]) -> str:
         if m: sql = sql[:m.start()] + f" WHERE project_id IN ({ids_csv}) " + sql[m.start():]
         else: sql = sql.rstrip(';') + f" WHERE project_id IN ({ids_csv});"
     return sql
+
+# 이 두 함수는 LLM이 실수를 하거나(예: name 사용, ``` 붙임) 중요한 요구사항을 빠뜨려도(예: project_id 필터 누락), 시스템이 이를 자동으로 수정하여 정확하고 안전한 쿼리만 데이터베이스에 전달되도록 보장합니다.
 
 # ─────────────────────────────────────────────────────────────────
 # LLM 단계 1: SQL 생성
@@ -178,19 +180,19 @@ def llm_generate_sql(user_text: str, selected_ids: List[int]) -> str:
 
 [생성할 SQL]
 """
-    try:
+    try:                ## 1. try: SQL 생성 및 API 호출
         resp = client.chat.completions.create(
             model=OPENAI_MODEL,
-            temperature=0.1, # 정확성 위해 온도 낮춤
-            messages=[ {"role": "system", "content": system}, {"role": "user", "content": prompt} ],
-        )
-        raw = resp.choices[0].message.content or ""
-        sql = sanitize_sql(raw)
-        sql = enforce_project_filter(sql, selected_ids)
-        return sql
-    except Exception as e:
-        print(f"🔥 LLM SQL 생성 오류: {e}")
-        return "-- LLM 오류 --"
+            temperature=0.1, # 정확성 위해 온도 낮춤 -> LLM(AI)에서 temperature 매개변수는 답변의 창의성(무작위성)을 조절하는 스위치이다. 낮을수록 더 결정적이고 일관된 답변을 생성한다.
+            messages=[ {"role": "system", "content": system}, {"role": "user", "content": prompt} ],   # messages는 역할극 대본 같은 것이라고 생각하면 됨. -> AI가 어떤 역할을 맡고 어떤 맥락에서 답변해야 하는지 알려줌.
+        ) # resp는 LLM의 응답 전체를 담고 있는 객체. 이때, 이때 두 가지 핵심 설정을 전달합니다. 첫째, temperature=0.1로 설정하여 답변의 정확성을 높이고, 둘째, messages 배열을 통해 시스템과 사용자 역할을 명확히 구분하여 LLM이 SQL 생성에 집중하도록 유도합니다.
+        raw = resp.choices[0].message.content or ""  ## 2. 후처리 (SQL 정제 및 보정)
+        sql = sanitize_sql(raw)  # 1단계 정제, AI가 텍스트 앞뒤에 붙인 불필요한 마크다운이나 설명을 제거함.
+        sql = enforce_project_filter(sql, selected_ids) # 2단계 보정, 사용자가 선택한 프로젝트 ID 필터를 SQL에 강제로 주입함.
+        return sql # 모든 정제와 보정이 끝난, 실행 가능한 최종 SQL 문장을 반환합니다.
+    except Exception as e: ## 3. 오류 처리 ---# try 블록의 1~2단계(API 호출, 후처리)에서 어떤 종류의 오류라도 발생하면 (예: 인터넷 끊김, API 키 오류 등) 프로그램이 죽지 않고 이 except 블록이 실행됩니다.
+        print(f"🔥 LLM SQL 생성 오류: {e}") # 오류 내용을 터미널에 기록합니다.
+        return "-- LLM 오류 --" # 앱(GUI)에는 실제 오류 대신 "--LLM 오류 --"라는 간단한 메시지를 반환하여 사용자에게 알립니다. 그래서 사용자가 오류 상황을 인지할 수 있게 합니다.
 
 # ─────────────────────────────────────────────────────────────────
 # LLM 단계 2: 자연어 답변 생성 (데이터 분석용)
@@ -257,6 +259,7 @@ def llm_classify_intent(user_text: str) -> str:
     prompt = f"사용자 질문: {user_text}"
     try:
         resp = client.chat.completions.create( model=OPENAI_MODEL, temperature=0.0, messages=[ {"role": "system", "content": system}, {"role": "user", "content": prompt} ], )
+        # temperature=0.0: AI의 창의성을 0으로 설정하여, 제시된 보기 중에서 가장 확률이 높은 정답 하나만을 무조건 선택하도록 강제하는, 분류 작업에 필수적인 설정임.
         intent = (resp.choices[0].message.content or "").strip().upper()
         if intent in ["SQL", "SCHEMA_INFO"]: return intent
         return "CHAT"
@@ -264,6 +267,9 @@ def llm_classify_intent(user_text: str) -> str:
 
 # ─────────────────────────────────────────────────────────────────
 # LLM 단계 2.6: 스키마 정보 답변 생성 (변경 없음)
+"""
+이 블록은 사용자가 "데이터"가 아닌 "데이터의 구조(스키마)"에 대해 물어볼 때 작동하는 데이터베이스 설명 전문가 입니다.
+"""
 # ─────────────────────────────────────────────────────────────────
 COLUMN_DEFINITIONS = {
     "meta_data": { "summary_id": "PK", "project_id": "FK->project6", "layer_number": "레이어 번호", "process_date": "공정 날짜", "duration_seconds": "레이어 총 시간(첫 ON 이후)", "dwell_time_seconds": "레이저 OFF 시간(첫 ON 이후)", "active_time_seconds": "레이저 ON 시간(첫 ON 이후)", "dwell_time_ratio": "Dwell 비율(시간)", "dwell_ratio_by_time": "Dwell 비율(시간)", "dwell_ratio_by_count": "Dwell 비율(카운트)", "dwell_count": "Dwell 샘플 수(첫 ON 이후)", "active_count": "Active 샘플 수(첫 ON 이후)", "total_sample_count": "총 샘플 수(첫 ON 이후)", "mpt_min": "최소 용융풀 온도", "mpt_max": "최대 용융풀 온도", "mpt_avg": "평균 용융풀 온도", "mpt_median": "중앙값 용융풀 온도" },
@@ -309,6 +315,9 @@ def llm_chat_response(user_text: str, context: str) -> str:
 
 # ─────────────────────────────────────────────────────────────────
 # 메모리(간단 JSON) (변경 없음)
+"""
+    이 블록은 llm_chat_response가 최근 대화를 기억할 수 있도록 대화 기록을 로컬 파일(memory.json)에 저장하고 불러오는 기능입니다.
+"""
 # ─────────────────────────────────────────────────────────────────
 MEM_FILE = "memory.json"; MAX_MEMORY = 12
 def load_memory() -> List[dict]:
@@ -321,13 +330,41 @@ def save_memory(history: List[dict]):
 
 # ─────────────────────────────────────────────────────────────────
 # 메인 윈도우 (이하 코드 변경 없음 - 원본 구조 유지)
+"""
+
+APP 클래스는 이 애플리케이션의 본체이자 두뇌이다,.
+QMainWindow를 상속받아 메인 윈도우 그 자체를 구성하며, 모든 사용자 인터렉션(이벤트)을 처리하고 다른 모듈(LLM 함수, DB 커넥터)을 지휘하는 오케스트라 지휘자(Orchestrator)역할을 한다.
+    1. __init__ 메서드 - 역할: 앱이 처음 실행될 때 모든 것을 준비하고 설정하는 생성자이다.
+    : 윈도우 타이틀 설정, 크기 조정, 메모리 로드, UI 빌드, 프로젝트 로드, 초기 메시지 표시 등 앱 초기화 작업을 수행한다.
+    
+    2. _build_ui 메서드 - 역할: 앱의 시각적인 레이아웃(뼈대)을 만든다.
+    : 좌측 프로젝트 리스트, 중앙 채팅 영역, 우측 그래프 및 SQL 미리보기 영역 등 주요 UI 컴포넌트를 생성하고 배치한다.
+ 
+    3. _on_send 메서드 - 역할: 이 앱의 '두뇌'입니다. 사용자가 "전송"을 눌렀을 때의 모든 워크플로우를 지휘합니다.
+        1. 1차 LLM 호출: 사용자의 질문을 분석하여 'SQL', 'CHAT', 'SCHEMA_INFO' 중 하나로 분류합니다.
+        2. _checked_ids(): 현재 선택된 프로젝트 ID를 가져오고/ llm_generate_sql(...): (2차 LLM 호출) 자연어를 SQL로 변환합니다.
+           run_query(sql): db.connector를 통해 DB에서 df (데이터)를 가져옵니다.
+           llm_answer(...): (3차 LLM 호출) df 데이터를 AI에게 보여주고 "데이터 해석" 답변을 생성하게 합니다.
+        3. llm_schema_response(...): (LLM 호출) 스키마 정보를 묻는 질문에 답변합니다.
+        4. llm_chat_response(...): (LLM 호출) 일상 대화에 답변합니다.
+        5. self.last_df에 데이터가 있다면 _maybe_plot(self.last_df)를 호출하여 그래프를 그립니다.
+        6. _replace_last_bot_message(answer): "생각 중..." 메시지를 최종 답변으로 교체합니다.
+        
+    4. _on_project_check_changed (프로젝트 선택 처리) - 역할: 사용자가 프로젝트 체크박스를 변경할 때마다 SQL 미리보기를 업데이트합니다.
+    : 선택된 프로젝트 ID를 가져와 SQL 미리보기에 반영합니다.
+    
+"""
+    
+    
+    
+    
 # ─────────────────────────────────────────────────────────────────
 class App(QMainWindow):
-    def __init__(self):
+    def __init__(self): #1. 앱이 처음 실행될 때 모든 것을 준비하고 설정하는 생성자.
         super().__init__()
-        self.setWindowTitle("Laser Wire DED Monitoring – LLM SQL Assistant v4.0")
+        self.setWindowTitle("Laser Wire DED Monitoring – LLM SQL Assistant v1.0")
 
-        # --- 🔽 [수정] 윈도우 아이콘 설정 로직 추가 🔽 ---
+        # --- 윈도우 아이콘 설정 로직 추가 ---
         try:
             # 현재 스크립트 파일(.py)이 있는 디렉토리의 절대 경로를 찾습니다.
             base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -343,7 +380,7 @@ class App(QMainWindow):
         except Exception as e:
             # 아이콘 로드 중 다른 예외 발생 시 터미널에 경고를 출력합니다.
             print(f"Warning: Failed to load window icon - {e}")
-        # --- 🔼 [수정] 로직 추가 완료 🔼 ---
+        # ---  로직 추가 완료  ---
 
         self.resize(1700, 950)
         self.history = load_memory()
@@ -354,7 +391,7 @@ class App(QMainWindow):
         self._append_bot("초기화 완료! 좌측에서 프로젝트를 선택하고 중앙에 질문을 입력하세요.<br>"
                          "예) '선택한 프로젝트의 레이어별 dwell 비율 보여줘'")
 
-    def _build_ui(self):
+    def _build_ui(self): #2. 앱의 시각적인 레이아웃(뼈대)을 만든다.
         left_title = QLabel("Projects")
         left_title.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.project_list = QListWidget()
@@ -440,7 +477,7 @@ class App(QMainWindow):
                     pass
         return ids
 
-    def _on_project_check_changed(self, _):
+    def _on_project_check_changed(self, _): #4. 좌측 QListWidget의 체크박스 상태가 변경될 때마다 호출됩니다. 사용자가 프로젝트를 선택하거나 선택 해제할 때마다 이 메서드가 실행되어 SQL 미리보기 영역을 업데이트합니다.
         ids = self._checked_ids()
         ids_csv = ",".join(map(str, ids))
         if not ids:
@@ -488,7 +525,7 @@ SELECT m.project_id, p.project_name, COUNT(m.*) AS "rows(meta)", COUNT(DISTINCT 
         self.chat.insertHtml(f'<b style="color:#00FF00;">LLM:</b> {final_answer}<br><hr>')
         self.chat.moveCursor(QTextCursor.End)
 
-    def _on_send(self):
+    def _on_send(self): #3. 이 앱의 '두뇌'입니다. 사용자가 "전송"을 눌렀을 때의 모든 워크플로우를 지휘합니다.
         user_text = self.input.text().strip()
         if not user_text: return
 
@@ -563,7 +600,7 @@ SELECT m.project_id, p.project_name, COUNT(m.*) AS "rows(meta)", COUNT(DISTINCT 
                 return cols_lower_map[cand_lower]
         return None
 
-    def _maybe_plot(self, df: pd.DataFrame):
+    def _maybe_plot(self, df: pd.DataFrame): #
         try:
             fig = None
             cols = list(df.columns)

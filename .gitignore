@@ -19,3 +19,12 @@ __pycache__/
 # 6. 임시 파일: 대화 기록 및 테스트 결과물
 memory.json
 *.html
+
+# Python Virtual Environment
+venv/
+
+# SQL backup files
+llm_db_backup.sql
+llm_db_backup_clean.sql
+llm_db_backup_new.sql
+llm_db_backup_utf8.sql
