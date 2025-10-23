@@ -5,6 +5,7 @@
 이 도구를 사용하면 "1~10 레이어까지의 mpt 통계량 조사해줘"와 같은 복잡한 질문을 한국어로 입력하여, SQL을 직접 작성할 필요 없이 즉각적인 답변과 관련 데이터를 받을 수 있습니다.
 
 <img width="1916" height="1024" alt="image" src="https://github.com/user-attachments/assets/4aacf15c-d24e-45a3-b0ba-5d8256d2f3a4" />
+<img width="1695" height="976" alt="image" src="https://github.com/user-attachments/assets/c421af40-79e2-4deb-9129-daa3f005ac72" />
 
 
 
